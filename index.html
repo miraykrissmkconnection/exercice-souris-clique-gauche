@@ -1,0 +1,263 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Entraînement au clic gauche</title>
+<style>
+* { box-sizing: border-box; }
+body {
+  margin: 0;
+  padding: 24px;
+  font-family: Arial, Helvetica, sans-serif;
+  background: #f5f6f8;
+  color: #222;
+}
+.wrapper {
+  width: min(100%, 900px);
+  margin: 0 auto;
+}
+.top {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 20px;
+  flex-wrap: wrap;
+  margin-bottom: 14px;
+}
+h1 {
+  margin: 0 0 6px;
+  font-size: 22px;
+}
+p {
+  margin: 0;
+  color: #666;
+  line-height: 1.4;
+}
+.controls {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  flex-wrap: wrap;
+}
+button {
+  font: inherit;
+}
+.action {
+  border: 1px solid #cfd3d8;
+  background: white;
+  color: #222;
+  padding: 10px 16px;
+  border-radius: 9px;
+  cursor: pointer;
+}
+.action:hover { background: #f0f1f3; }
+.primary {
+  border: 0;
+  background: #2563eb;
+  color: white;
+  padding: 12px 22px;
+  border-radius: 9px;
+  cursor: pointer;
+  font-weight: bold;
+}
+.primary:hover { background: #1d4ed8; }
+#game {
+  position: relative;
+  width: 100%;
+  height: 430px;
+  overflow: hidden;
+  border: 1px solid #d8dce1;
+  border-radius: 14px;
+  background: white;
+}
+.center {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  padding: 25px;
+}
+.center.hidden { display: none; }
+.center h2 {
+  margin: 0 0 10px;
+  font-size: 24px;
+}
+.center p { margin-bottom: 18px; }
+#target {
+  position: absolute;
+  display: none;
+  border: 0;
+  border-radius: 50%;
+  background: #e74c3c;
+  padding: 0;
+  cursor: pointer;
+  box-shadow: 0 2px 5px rgba(0,0,0,.2);
+  outline-offset: 3px;
+  will-change: left, top;
+}
+#target:focus-visible {
+  outline: 3px solid #2563eb;
+}
+.help {
+  margin-top: 12px;
+  font-size: 14px;
+  color: #666;
+}
+@media (max-width: 600px) {
+  body { padding: 14px; }
+  #game { height: 380px; }
+  h1 { font-size: 19px; }
+}
+</style>
+</head>
+<body>
+<div class="wrapper">
+  <div class="top">
+    <div>
+      <h1>Clique sur les points</h1>
+      <p>Utilise le clic gauche de la souris pour faire disparaître chaque point.</p>
+    </div>
+    <div class="controls">
+      <span>Points : <strong id="score">0</strong> / 20</span>
+      <button class="action" id="restart" type="button">Recommencer</button>
+    </div>
+  </div>
+
+  <div id="game">
+    <div class="center" id="startScreen">
+      <div>
+        <h2>Prêt ?</h2>
+        <p>Utilise le clic gauche pour effacer les points.</p>
+        <button class="primary" id="start" type="button">Commencer</button>
+      </div>
+    </div>
+
+    <button id="target" type="button" aria-label="Point à cliquer"></button>
+
+    <div class="center hidden" id="finishScreen" aria-live="polite">
+      <div>
+        <h2>Bravo !</h2>
+        <p>Tu as cliqué sur les 20 points.</p>
+        <button class="primary" id="again" type="button">Rejouer</button>
+      </div>
+    </div>
+  </div>
+
+  <p class="help">Les points changent de taille et se déplacent doucement pour travailler la précision et le contrôle de la souris.</p>
+</div>
+
+<script>
+const game = document.getElementById("game");
+const target = document.getElementById("target");
+const scoreEl = document.getElementById("score");
+const startScreen = document.getElementById("startScreen");
+const finishScreen = document.getElementById("finishScreen");
+const startBtn = document.getElementById("start");
+const restartBtn = document.getElementById("restart");
+const againBtn = document.getElementById("again");
+
+let score = 0;
+let running = false;
+let animationId = null;
+let x = 0, y = 0, vx = 0.7, vy = 0.55, size = 50;
+let lastTime = 0;
+
+function randomSize() {
+  const sizes = [30, 38, 48, 58, 70];
+  return sizes[Math.floor(Math.random() * sizes.length)];
+}
+
+function placeTarget() {
+  size = randomSize();
+  target.style.width = size + "px";
+  target.style.height = size + "px";
+
+  const maxX = Math.max(0, game.clientWidth - size);
+  const maxY = Math.max(0, game.clientHeight - size);
+  x = Math.random() * maxX;
+  y = Math.random() * maxY;
+
+  const speed = 0.35 + Math.random() * 0.65;
+  vx = (Math.random() < 0.5 ? -1 : 1) * speed;
+  vy = (Math.random() < 0.5 ? -1 : 1) * speed;
+
+  target.style.left = x + "px";
+  target.style.top = y + "px";
+}
+
+function animate(time) {
+  if (!running) return;
+
+  if (time - lastTime > 16) {
+    lastTime = time;
+    const maxX = Math.max(0, game.clientWidth - size);
+    const maxY = Math.max(0, game.clientHeight - size);
+
+    x += vx;
+    y += vy;
+
+    if (x <= 0 || x >= maxX) {
+      vx *= -1;
+      x = Math.max(0, Math.min(maxX, x));
+    }
+    if (y <= 0 || y >= maxY) {
+      vy *= -1;
+      y = Math.max(0, Math.min(maxY, y));
+    }
+
+    target.style.left = x + "px";
+    target.style.top = y + "px";
+  }
+
+  animationId = requestAnimationFrame(animate);
+}
+
+function begin() {
+  if (animationId) cancelAnimationFrame(animationId);
+
+  score = 0;
+  scoreEl.textContent = "0";
+  running = true;
+  startScreen.classList.add("hidden");
+  finishScreen.classList.add("hidden");
+  target.style.display = "block";
+
+  placeTarget();
+  animationId = requestAnimationFrame(animate);
+}
+
+target.addEventListener("click", function(event) {
+  if (!running || event.button !== 0) return;
+
+  score++;
+  scoreEl.textContent = score;
+
+  if (score >= 20) {
+    running = false;
+    target.style.display = "none";
+    if (animationId) cancelAnimationFrame(animationId);
+    finishScreen.classList.remove("hidden");
+  } else {
+    target.style.display = "none";
+    setTimeout(function() {
+      if (running) {
+        placeTarget();
+        target.style.display = "block";
+      }
+    }, 90);
+  }
+});
+
+startBtn.addEventListener("click", begin);
+restartBtn.addEventListener("click", begin);
+againBtn.addEventListener("click", begin);
+
+window.addEventListener("resize", function() {
+  if (running) placeTarget();
+});
+</script>
+</body>
+</html>
